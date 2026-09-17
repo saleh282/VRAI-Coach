@@ -1,0 +1,187 @@
+User flow:
+User
+  ↓
+Mobile App
+  ↓
+Choose Session Type
+  ↓
+Interview
+  ↓
+Choose Interview Category
+  ├── Tech
+  └── Soft Skills
+  ↓
+Choose Difficulty
+  ├── Easy
+  ├── Medium
+  └── Hard
+  ↓
+Wear VR Headset
+  ↓
+AI generates / runs the interview
+  ↓
+Interview Session
+  ↓
+AI Evaluation
+  ↓
+[Later]
+Human Rater / HR Evaluation
+  ↓
+Final Evaluation
+  ↓
+User sees results
+
+
+Session
+   │
+   ├── AI Evaluation
+   │
+   └── Human/HR Evaluation   ← لما نضيف الـ Rater
+-------------------------------------------
+
+User
+------------------
+id
+name
+email
+passwordHash
+role
+createdAt
+updatedAt
+{
+  "_id": "...",
+  "name": "Ahmed",
+  "email": "ahmed@example.com",
+  "passwordHash": "...",
+  "role": "user",
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+
+Session
+------------------
+id
+userId
+scenarioId
+difficulty
+status
+startedAt
+completedAt
+createdAt
+{
+  "userId": "...",
+  "sessionType": "interview",
+  "category": "soft_skills",
+  "difficulty": "medium",
+  "status": "in_progress"
+}
+
+Evaluation
+------------------
+id
+sessionId
+scores
+overallScore
+feedback
+createdAt
+------------>
+type: {
+  enum: ["AI", "HUMAN"]
+}
+
+1. Entities :
+User
+Session
+Evaluation
+
+2. Fields :
+User:
+name
+email
+role
+...
+
+3. Data Types :
+name → String
+email → String
+createdAt → Date
+score → Number
+
+4. Relationships:
+User 1 → Many Sessions
+Session 1 → ? Evaluations
+
+5. Constraints:
+email → unique
+score → between 0 and 10
+
+6. Validation:
+email required
+name required
+score cannot be negative
+difficulty must be valid value
+
+
+User
+  │
+  │ has
+  ▼
+Sessions
+
+User
+  │
+  └── Sessions
+          │
+          ├── AI Evaluation
+          │
+          └── Human Evaluation (later)
+
+┌──────────────┐
+│    USERS     │
+├──────────────┤
+│ _id          │
+│ name         │
+│ email        │
+│ passwordHash │
+│ role         │
+└──────┬───────┘
+       │
+       │ 1
+       │
+       │ *
+       ▼
+┌──────────────────┐
+│     SESSIONS     │
+├──────────────────┤
+│ _id              │
+│ userId           │
+│ sessionType      │
+│ category         │
+│ difficulty       │
+│ status           │
+│ startedAt        │
+│ completedAt      │
+└────────┬─────────┘
+         │
+         │ 1
+         │
+         │ *
+         ▼
+┌──────────────────┐
+│   EVALUATIONS    │
+├──────────────────┤
+│ _id              │
+│ sessionId        │
+│ type             │
+│ scores           │
+│ overallScore     │
+│ feedback         │
+└──────────────────┘
+
+User._id
+   ↓
+Session.userId
+
+Session._id
+   ↓
+Evaluation.sessionId
