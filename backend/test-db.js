@@ -1,11 +1,12 @@
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
+const path = require("path");
 
 const User = require("./models/userModel");
 const Session = require("./models/sessionModel");
 const Evaluation = require("./models/evaluationModel");
 
-dotenv.config({ path: "./config/config.env" });
+dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 
 const testDatabase = async () => {
   try {
@@ -50,13 +51,16 @@ const testDatabase = async () => {
 
     const evaluation = await Evaluation.create({
       sessionId: session._id,
-      type: "AI",
+      evaluatorType: "AI",
+      modelVersion: "interview-evaluator-test",
+      rubricVersion: "1.0.0",
+      status: "SUBMITTED",
       scores: {
         communication: 85,
-        confidence: 80,
         clarity: 90,
+        confidence: 80,
+        contentQuality: 85,
       },
-      overallScore: 85,
       feedback: "Good performance in the interview.",
     });
 
@@ -68,6 +72,7 @@ const testDatabase = async () => {
   } catch (error) {
     console.error("Database test failed:");
     console.error(error.message);
+    process.exitCode = 1;
   } finally {
     await mongoose.connection.close();
     console.log("MongoDB connection closed");

@@ -29,8 +29,23 @@ const sessionSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "in_progress", "completed"],
+      enum: ["pending", "in_progress", "completed", "cancelled", "failed"],
       default: "pending",
+    },
+
+    transcriptRef: {
+      type: String,
+      trim: true,
+    },
+
+    audioRef: {
+      type: String,
+      trim: true,
+    },
+
+    videoRef: {
+      type: String,
+      trim: true,
     },
 
     startedAt: {
@@ -43,7 +58,11 @@ const sessionSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    collection: "sessions",
   }
 );
+
+sessionSchema.index({ userId: 1, createdAt: -1 });
+sessionSchema.index({ status: 1 });
 
 module.exports = mongoose.model("sessionModel", sessionSchema);

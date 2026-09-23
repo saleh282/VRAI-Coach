@@ -1,9 +1,13 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "db:init": "node init-db.js",
+    "test:connection": "node test-connection.js",
+    "test:db": "node test-db.js",
+    "test": "node --test tests/models.test.js"
   },
   "keywords": [],
   "author": "",

@@ -1,187 +1,79 @@
-User flow:
-User
-  ↓
-Mobile App
-  ↓
-Choose Session Type
-  ↓
-Interview
-  ↓
-Choose Interview Category
-  ├── Tech
-  └── Soft Skills
-  ↓
-Choose Difficulty
-  ├── Easy
-  ├── Medium
-  └── Hard
-  ↓
-Wear VR Headset
-  ↓
-AI generates / runs the interview
-  ↓
-Interview Session
-  ↓
-AI Evaluation
-  ↓
-[Later]
-Human Rater / HR Evaluation
-  ↓
-Final Evaluation
-  ↓
-User sees results
+VRAI-Coach Database Schema v1
+=============================
 
+Purpose
+-------
+The database stores interview users, interview sessions, and AI/Human
+evaluations. A human evaluation is internal ground truth used to validate the
+AI model. It is not currently part of the score shown to the user.
 
-Session
-   │
-   ├── AI Evaluation
-   │
-   └── Human/HR Evaluation   ← لما نضيف الـ Rater
--------------------------------------------
+Relationships
+-------------
 
-User
-------------------
-id
-name
-email
-passwordHash
-role
-createdAt
-updatedAt
-{
-  "_id": "...",
-  "name": "Ahmed",
-  "email": "ahmed@example.com",
-  "passwordHash": "...",
-  "role": "user",
-  "createdAt": "...",
-  "updatedAt": "..."
-}
+User 1 -> many Sessions
+Session 1 -> many Evaluations
+User (rater) 1 -> many Human Evaluations
 
-Session
-------------------
-id
-userId
-scenarioId
-difficulty
-status
-startedAt
-completedAt
-createdAt
-{
-  "userId": "...",
-  "sessionType": "interview",
-  "category": "soft_skills",
-  "difficulty": "medium",
-  "status": "in_progress"
-}
+users
+-----
+_id            ObjectId
+name           String, required, trimmed
+email          String, required, unique, lowercase, trimmed
+passwordHash   String, required
+role           String: user | rater | admin
+createdAt      Date, automatic
+updatedAt      Date, automatic
 
-Evaluation
-------------------
-id
-sessionId
-scores
-overallScore
-feedback
-createdAt
------------->
-type: {
-  enum: ["AI", "HUMAN"]
-}
+sessions
+--------
+_id            ObjectId
+userId         ObjectId -> users, required
+sessionType    String: interview
+category       String: tech | soft_skills
+difficulty     String: easy | medium | hard
+status         String: pending | in_progress | completed | cancelled | failed
+transcriptRef  String, optional protected-storage reference
+audioRef       String, optional protected-storage reference
+videoRef       String, optional protected-storage reference
+startedAt      Date, optional
+completedAt    Date, optional
+createdAt      Date, automatic
+updatedAt      Date, automatic
 
-1. Entities :
-User
-Session
-Evaluation
+evaluations
+-----------
+_id             ObjectId
+sessionId       ObjectId -> sessions, required
+evaluatorType   String: AI | HUMAN
+raterId         ObjectId -> users, required for HUMAN
+modelVersion    String, required for AI
+rubricVersion   String, required, default 1.0.0
+status          String: DRAFT | SUBMITTED
+scores          Object with communication, clarity, confidence, contentQuality
+overallScore    Number 0-100, calculated by the backend
+feedback        String, optional
+evidenceNote    String, required for submitted HUMAN evaluations
+submittedAt     Date, set automatically on submission
+createdAt       Date, automatic
+updatedAt       Date, automatic
 
-2. Fields :
-User:
-name
-email
-role
-...
+Scoring rubric v1
+-----------------
+communication   30%
+clarity         25%
+confidence      20%
+contentQuality  25%
 
-3. Data Types :
-name → String
-email → String
-createdAt → Date
-score → Number
+Every score is between 0 and 100. Draft evaluations may be incomplete. A
+submitted evaluation must contain every rubric score. Human and AI evaluations
+can only be compared when rubricVersion is the same.
 
-4. Relationships:
-User 1 → Many Sessions
-Session 1 → ? Evaluations
+Indexes and constraints
+-----------------------
+- users.email is unique.
+- users.role is indexed.
+- sessions are indexed by userId/createdAt and status.
+- evaluations are indexed by sessionId.
+- One submitted AI evaluation is allowed per session/model/rubric version.
+- One submitted Human evaluation is allowed per session/rubric version in v1.
 
-5. Constraints:
-email → unique
-score → between 0 and 10
-
-6. Validation:
-email required
-name required
-score cannot be negative
-difficulty must be valid value
-
-
-User
-  │
-  │ has
-  ▼
-Sessions
-
-User
-  │
-  └── Sessions
-          │
-          ├── AI Evaluation
-          │
-          └── Human Evaluation (later)
-
-┌──────────────┐
-│    USERS     │
-├──────────────┤
-│ _id          │
-│ name         │
-│ email        │
-│ passwordHash │
-│ role         │
-└──────┬───────┘
-       │
-       │ 1
-       │
-       │ *
-       ▼
-┌──────────────────┐
-│     SESSIONS     │
-├──────────────────┤
-│ _id              │
-│ userId           │
-│ sessionType      │
-│ category         │
-│ difficulty       │
-│ status           │
-│ startedAt        │
-│ completedAt      │
-└────────┬─────────┘
-         │
-         │ 1
-         │
-         │ *
-         ▼
-┌──────────────────┐
-│   EVALUATIONS    │
-├──────────────────┤
-│ _id              │
-│ sessionId        │
-│ type             │
-│ scores           │
-│ overallScore     │
-│ feedback         │
-└──────────────────┘
-
-User._id
-   ↓
-Session.userId
-
-Session._id
-   ↓
-Evaluation.sessionId

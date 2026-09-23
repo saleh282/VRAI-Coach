@@ -1,0 +1,9 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      PORT: ${PORT:-5000}
+      MONGO_URI: ${MONGO_URI}
+    ports:
+      - "${PORT:-5000}:${PORT:-5000}"
+    restart: unless-stopped

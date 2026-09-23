@@ -23,13 +23,16 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["user"],
+      enum: ["user", "rater", "admin"],
       default: "user",
     },
   },
   {
     timestamps: true,
+    collection: "users",
   }
 );
+
+userSchema.index({ role: 1 });
 
 module.exports = mongoose.model("userModel", userSchema);
