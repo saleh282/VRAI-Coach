@@ -4,7 +4,8 @@
 
 This document is the first contract between the VR/mobile client, backend, AI
 evaluation service, and internal rater tool. It defines behavior for
-implementation; the routes do not exist yet.
+implementation. Authentication routes are implemented; the other routes remain
+contract-only until their implementation sprint.
 
 - Public and rater endpoints use `/api/v1`.
 - Private service-to-service endpoints use `/internal/v1`.
@@ -56,6 +57,24 @@ and `500`.
 Returns `201` with the user and access token. Public registration always creates
 the `USER` role; rater and admin roles cannot be selected by the requester.
 
+Success response:
+
+```json
+{
+  "data": {
+    "accessToken": "<JWT>",
+    "user": {
+      "id": "<user-id>",
+      "name": "Ahmed Ali",
+      "email": "ahmed@example.com",
+      "role": "user"
+    }
+  }
+}
+```
+
+Passwords must contain at least 8 characters. Duplicate email returns `409`.
+
 ### Sign in
 
 `POST /api/v1/auth/login`
@@ -68,6 +87,27 @@ the `USER` role; rater and admin roles cannot be selected by the requester.
 ```
 
 Returns `200` with the user and access token.
+
+Invalid email or password returns `401` with the same generic message, so the
+response does not reveal whether an account exists.
+
+### Get the current user
+
+`GET /api/v1/auth/me`
+
+Requires `Authorization: Bearer <accessToken>`. Returns the current user's
+`id`, `name`, `email`, and `role`, without password data. Missing, invalid, or
+expired tokens return `401`.
+
+### Token rules
+
+- Access tokens expire after one hour by default (`JWT_EXPIRES_IN=1h`).
+- The signing key is read from `JWT_SECRET` and must remain server-side.
+- Flutter stores the access token in secure device storage and sends it using
+  the Bearer authorization header on protected requests.
+- This MVP does not issue refresh tokens; the user signs in again after expiry.
+- Public registration can only create the `user` role. Rater/admin roles are
+  assigned through a trusted administrative process.
 
 ## Interview sessions (VR/mobile to backend)
 
