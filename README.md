@@ -158,6 +158,50 @@ Example response:
   }
 }
 ```
+## Human Rater Evaluation
+
+### Rater workflow
+The backend includes a human-rater evaluation workflow for completed interview sessions.
+
+Human raters can:
+- Retrieve completed interview sessions.
+- Retrieve sessions that have not yet received a submitted human evaluation.
+- Submit an evaluation for a completed session.
+
+Each human evaluation uses the same four criteria as the AI evaluation rubric:
+
+- `communication`: 0–100
+- `clarity`: 0–100
+- `confidence`: 0–100
+- `contentQuality`: 0–100
+
+The backend calculates the overall score automatically using the following weights:
+
+- Communication: 30%
+- Clarity: 25%
+- Confidence: 20%
+- Content Quality: 25%
+
+Human evaluations are stored separately from AI evaluations and require an `evidenceNote` when submitted.
+
+AI-generated scores and AI-generated feedback are not exposed to the human rater during the human evaluation process.
+
+Human evaluations are used to support validation of the AI evaluation model.
+
+### Rater Testing
+
+The human-rater workflow was tested using Postman, including:
+
+- Retrieving completed sessions.
+- Retrieving unevaluated sessions.
+- Submitting a valid human evaluation.
+- Verifying the automatic overall-score calculation.
+- Validating required rubric scores.
+- Validating the `0–100` score range.
+- Validating the required `evidenceNote`.
+- Verifying that submitted evaluations are stored as `HUMAN`.
+- Verifying that AI scores and feedback are hidden from the rater.
+- Verifying that duplicate submitted human evaluations are rejected.
 
 ## Testing
 
