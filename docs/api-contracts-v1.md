@@ -141,7 +141,8 @@ idempotent. A completed session cannot be restarted.
 {
   "transcriptRef": "storage reference",
   "audioRef": "storage reference or null",
-  "videoRef": "storage reference or null"
+  "videoRef": "storage reference or null",
+  "motionRef": "storage reference or null"
 }
 ```
 
