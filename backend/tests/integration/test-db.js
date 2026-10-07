@@ -2,11 +2,12 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const path = require("path");
 
-const User = require("./models/userModel");
-const Session = require("./models/sessionModel");
-const Evaluation = require("./models/evaluationModel");
+const User = require("../../models/userModel.js");
+const Session = require("../../models/sessionModel.js");
+const Evaluation = require("../../models/evaluationModel.js");
 
-dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
+// dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
+dotenv.config({ path: path.resolve(__dirname, "../../..", ".env"), quiet: true });
 
 const testDatabase = async () => {
   try {
@@ -78,5 +79,6 @@ const testDatabase = async () => {
     console.log("MongoDB connection closed");
   }
 };
+
 
 testDatabase();

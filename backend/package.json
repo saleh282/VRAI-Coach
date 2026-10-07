@@ -5,8 +5,8 @@
   "scripts": {
     "start": "node server.js",
     "db:init": "node init-db.js",
-    "test:connection": "node test-connection.js",
-    "test:db": "node test-db.js",
+    "test:connection": "node --test tests/integration/test-connection.js",
+    "test:db": "node --test tests/integration/test-db.js",
     "test": "node --test tests/models.test.js"
   },
   "keywords": [],
@@ -16,6 +16,6 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mongoose": "^9.10.1"
+    "mongoose": "^9.11.0"
   }
 }

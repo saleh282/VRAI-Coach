@@ -2,7 +2,8 @@ const path = require("path");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 
-dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
+// dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
+dotenv.config({ path: path.resolve(__dirname, "../../..", ".env"), quiet: true });
 
 const testConnection = async () => {
   if (!process.env.MONGO_URI) {

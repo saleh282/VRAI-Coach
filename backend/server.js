@@ -3,11 +3,14 @@ const path = require("path");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
+const raterRoutes = require("./routes/raterRoutes");
 
 dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 
 const app = express();
 app.use(express.json());
+
+app.use("/api/v1/rater", raterRoutes);
 
 app.get("/", (req, res) => {
     res.send("VRAI-Coach Backend is running 🚀");
