@@ -3,11 +3,14 @@ const path = require("path");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
+const authRoutes = require("./routes/authRoutes");
 
 dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));
+
+app.use("/api/v1/auth", authRoutes);
 
 app.get("/", (req, res) => {
     res.send("VRAI-Coach Backend is running 🚀");
@@ -22,9 +25,23 @@ app.get("/health", (req, res) => {
   });
 });
 
+app.use((error, req, res, next) => {
+  console.error("Request failed:", error.message);
+  res.status(500).json({
+    error: {
+      code: "INTERNAL_SERVER_ERROR",
+      message: "An unexpected error occurred",
+    },
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is missing from the project .env file");
+  }
+
   await connectDB();
 
   const server = app.listen(PORT, () => {
