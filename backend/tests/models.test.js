@@ -18,6 +18,23 @@ test("uses explicit collection names", () => {
   assert.equal(Evaluation.collection.collectionName, "evaluations");
 });
 
+test("stores references for all session media files", async () => {
+  const session = new Session({
+    userId: new mongoose.Types.ObjectId(),
+    category: "tech",
+    difficulty: "medium",
+    audioRef: "sessions/session-123/audio.wav",
+    videoRef: "sessions/session-123/screen.mp4",
+    motionRef: "sessions/session-123/motion.json",
+  });
+
+  await session.validate();
+
+  assert.equal(session.audioRef, "sessions/session-123/audio.wav");
+  assert.equal(session.videoRef, "sessions/session-123/screen.mp4");
+  assert.equal(session.motionRef, "sessions/session-123/motion.json");
+});
+
 test("accepts user, rater, and admin roles", async () => {
   for (const role of ["user", "rater", "admin"]) {
     const user = new User({

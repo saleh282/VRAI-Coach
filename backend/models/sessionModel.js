@@ -48,6 +48,11 @@ const sessionSchema = new mongoose.Schema(
       trim: true,
     },
 
+    motionRef: {
+      type: String,
+      trim: true,
+    },
+
     startedAt: {
       type: Date,
     },
