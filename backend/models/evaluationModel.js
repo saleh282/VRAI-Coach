@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+// Shared score fields used by both AI and human evaluations (0–100 rubric).
 const scoreSchema = new mongoose.Schema(
   {
     communication: {
@@ -28,6 +29,7 @@ const scoreSchema = new mongoose.Schema(
 
 const evaluationSchema = new mongoose.Schema(
   {
+    // Link every evaluation to the interview session it measures.
     sessionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "sessionModel",
@@ -35,6 +37,7 @@ const evaluationSchema = new mongoose.Schema(
     },
 
     evaluatorType: {
+      // Distinguishes model output from an independent human rating.
       type: String,
       enum: ["AI", "HUMAN"],
       required: true,
@@ -71,6 +74,7 @@ const evaluationSchema = new mongoose.Schema(
     },
 
     scores: {
+      // Submitted evaluations require all four criteria; drafts may be partial.
       type: scoreSchema,
       default: () => ({}),
       validate: {
@@ -120,6 +124,7 @@ const evaluationSchema = new mongoose.Schema(
 );
 
 evaluationSchema.pre("validate", function () {
+  // Calculate the weighted total in the backend so clients cannot choose it.
   const scores = this.scores;
   const hasAllScores = [
     scores?.communication,
@@ -145,6 +150,7 @@ evaluationSchema.pre("validate", function () {
   }
 });
 
+// Enforce at most one submitted evaluation per evaluator/version combination.
 evaluationSchema.index({ sessionId: 1 });
 evaluationSchema.index(
   { sessionId: 1, evaluatorType: 1, modelVersion: 1, rubricVersion: 1 },

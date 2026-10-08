@@ -8,6 +8,7 @@ const Evaluation = require("./models/evaluationModel");
 
 dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 
+// Optional one-time setup: create the known collections and their indexes.
 const initializeDatabase = async () => {
   if (!process.env.MONGO_URI) {
     throw new Error("MONGO_URI is missing. Add it to the project .env file.");
@@ -19,6 +20,7 @@ const initializeDatabase = async () => {
     });
 
     for (const model of [User, Session, Evaluation]) {
+      // Explicit creation makes collections/indexes visible before first writes.
       await model.createCollection();
       await model.createIndexes();
       console.log(`Collection ready: ${model.collection.collectionName}`);

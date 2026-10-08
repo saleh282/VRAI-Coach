@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const Session = require("../models/sessionModel");
 const Evaluation = require("../models/evaluationModel");
 
+// Rater workflow handlers. These routes currently have no auth middleware;
+// protect them with requireAuth + allowRoles("rater") before real use.
 // GET /api/v1/rater/sessions
 const getRaterSessions = async (req, res) => {
   try {
@@ -14,7 +16,7 @@ const getRaterSessions = async (req, res) => {
       });
     }
 
-    // Get all completed sessions
+    // Only completed sessions have material ready for human review.
     const sessions = await Session.find({
       status: "completed",
     })
@@ -23,7 +25,7 @@ const getRaterSessions = async (req, res) => {
 
     const sessionIds = sessions.map((session) => session._id);
 
-    // Get submitted HUMAN evaluations only
+    // Find completed sessions that already have a submitted human rating.
     const humanEvaluations = await Evaluation.find({
       sessionId: { $in: sessionIds },
       evaluatorType: "HUMAN",
@@ -45,7 +47,7 @@ const getRaterSessions = async (req, res) => {
       ),
     }));
 
-    // Return only sessions that haven't been evaluated by a human
+    // The pending view is the queue; "all" also includes already-rated sessions.
     if (status === "pending") {
       result = result.filter(
         (session) => !session.hasHumanEvaluation
@@ -77,7 +79,7 @@ const getRaterSession = async (req, res) => {
       });
     }
 
-    // Only completed sessions can be reviewed
+    // Do not expose an unfinished session to the rater workspace.
     const session = await Session.findOne({
       _id: sessionId,
       status: "completed",
@@ -93,7 +95,7 @@ const getRaterSession = async (req, res) => {
       });
     }
 
-    // Check whether a HUMAN evaluation already exists
+    // Report submission state without loading or returning any AI scores.
     const humanEvaluation = await Evaluation.findOne({
       sessionId,
       evaluatorType: "HUMAN",
@@ -127,7 +129,7 @@ const submitRaterEvaluation = async (req, res) => {
       });
     }
 
-    // Make sure the session exists and is completed
+    // A human rating is accepted only after its session is completed.
     const session = await Session.findOne({
       _id: sessionId,
       status: "completed",
@@ -147,7 +149,7 @@ const submitRaterEvaluation = async (req, res) => {
       evidenceNote,
     } = req.body;
 
-    // Validate scores
+    // Enforce the shared 0–100 rubric before saving anything.
     const scores = {
       communication,
       clarity,
@@ -168,7 +170,7 @@ const submitRaterEvaluation = async (req, res) => {
       }
     }
 
-    // Required for submitted HUMAN evaluations
+    // Evidence notes explain which observable behavior supports the scores.
     if (
       typeof evidenceNote !== "string" ||
       evidenceNote.trim().length === 0
@@ -178,7 +180,7 @@ const submitRaterEvaluation = async (req, res) => {
       });
     }
 
-    // Prevent duplicate HUMAN evaluations
+    // Give a clear conflict response; the unique database index is the final guard.
     const existingEvaluation = await Evaluation.findOne({
       sessionId,
       evaluatorType: "HUMAN",
@@ -191,23 +193,11 @@ const submitRaterEvaluation = async (req, res) => {
       });
     }
 
-    /*
-      TEMPORARY:
-      Authentication is not connected yet.
-
-      We'll replace this with:
-      const raterId = req.user.id;
-      عشان اعرف اتيست بشكل مؤقت 
-
-      after Backend-1 finishes authentication.
-    */
-
+    // TODO: Once these routes are protected, set raterId from req.auth.userId.
+    // This placeholder currently records the session owner, not the actual rater.
     const evaluation = new Evaluation({
       sessionId,
       evaluatorType: "HUMAN",
-
-      // Temporary test rater ID.
-      // This will be replaced by req.user.id after Auth integration.
       raterId: session.userId,
 
       rubricVersion: "1.0.0",
@@ -217,8 +207,7 @@ const submitRaterEvaluation = async (req, res) => {
       evidenceNote: evidenceNote.trim(),
     });
 
-    // evaluationModel automatically calculates
-    // the weighted overallScore.
+    // evaluationModel calculates the weighted overallScore before validation.
     await evaluation.save();
 
     return res.status(201).json({

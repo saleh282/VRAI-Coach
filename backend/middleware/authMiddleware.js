@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
 
+// Verify a Bearer JWT and attach the current account identity to the request.
 const requireAuth = async (req, res, next) => {
   const authorization = req.get("authorization") || "";
   const [scheme, token] = authorization.split(" ");
@@ -14,6 +15,7 @@ const requireAuth = async (req, res, next) => {
     });
   }
 
+  // The signing key is server-only; a missing key is a server configuration error.
   if (!process.env.JWT_SECRET) {
     return next(new Error("JWT_SECRET is missing from the environment"));
   }
@@ -22,6 +24,7 @@ const requireAuth = async (req, res, next) => {
     const payload = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: ["HS256"],
     });
+    // Check that the account still exists and get its current role from MongoDB.
     const user = await User.findById(payload.sub).select("role");
 
     if (!user) {
@@ -52,6 +55,7 @@ const requireAuth = async (req, res, next) => {
   }
 };
 
+// Restrict a route to one or more account roles after requireAuth has run.
 const allowRoles = (...allowedRoles) => (req, res, next) => {
   if (!req.auth || !allowedRoles.includes(req.auth.role)) {
     return res.status(403).json({

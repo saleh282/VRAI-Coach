@@ -5,6 +5,7 @@ const User = require("../models/userModel");
 const BCRYPT_ROUNDS = 12;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Only expose safe profile fields; never return passwordHash in an API response.
 const publicUser = (user) => ({
   id: user._id.toString(),
   name: user.name,
@@ -17,6 +18,7 @@ const createAccessToken = (user) => {
     throw new Error("JWT_SECRET is missing from the environment");
   }
 
+  // Put the user's ID in the JWT subject and include their role for authorization.
   return jwt.sign(
     { role: user.role },
     process.env.JWT_SECRET,
@@ -29,6 +31,7 @@ const createAccessToken = (user) => {
 
 const register = async (req, res, next) => {
   try {
+    // Registration accepts credentials, but not a role chosen by the client.
     const { name, email, password } = req.body;
 
     if (
@@ -47,6 +50,7 @@ const register = async (req, res, next) => {
       });
     }
 
+    // Normalize email before validation and storage so casing is consistent.
     const normalizedEmail = email.trim().toLowerCase();
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
       return res.status(400).json({
@@ -66,6 +70,7 @@ const register = async (req, res, next) => {
       });
     }
 
+    // Store only a one-way password hash, never the original password.
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const user = await User.create({
       name: name.trim(),
@@ -117,6 +122,8 @@ const login = async (req, res, next) => {
       });
     }
 
+    // Compare the supplied password with the saved hash; don't reveal which
+    // credential was wrong in the response.
     const user = await User.findOne({ email: email.trim().toLowerCase() });
     const passwordMatches = user
       ? await bcrypt.compare(password, user.passwordHash)
@@ -145,6 +152,7 @@ const login = async (req, res, next) => {
 
 const getCurrentUser = async (req, res, next) => {
   try {
+    // req.auth is populated by requireAuth after verifying the Bearer token.
     const user = await User.findById(req.auth.userId);
 
     if (!user) {

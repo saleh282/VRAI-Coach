@@ -6,6 +6,7 @@ const User = require("../models/userModel");
 const Session = require("../models/sessionModel");
 const Evaluation = require("../models/evaluationModel");
 
+// These tests validate Mongoose rules without needing a live MongoDB instance.
 test("keeps the existing Mongoose model names", () => {
   assert.equal(User.modelName, "userModel");
   assert.equal(Session.modelName, "sessionModel");
@@ -19,6 +20,7 @@ test("uses explicit collection names", () => {
 });
 
 test("stores references for all session media files", async () => {
+  // References are paths/keys only; the test does not upload media files.
   const session = new Session({
     userId: new mongoose.Types.ObjectId(),
     category: "tech",
@@ -73,6 +75,7 @@ test("allows a partial human evaluation draft", async () => {
 });
 
 test("calculates the weighted overall score", async () => {
+  // The model hook should compute: 82*30% + 88*25% + 75*20% + 80*25%.
   const evaluation = new Evaluation({
     sessionId: new mongoose.Types.ObjectId(),
     evaluatorType: "AI",

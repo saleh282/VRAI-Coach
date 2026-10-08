@@ -1,6 +1,8 @@
 services:
   backend:
+    # Build the API image from the backend directory.
     build: ./backend
+    # The app also requires JWT_SECRET; make sure it is provided at runtime.
     environment:
       PORT: ${PORT:-5000}
       MONGO_URI: ${MONGO_URI}

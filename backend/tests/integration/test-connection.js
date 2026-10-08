@@ -2,9 +2,10 @@ const path = require("path");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 
-// dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
+// Integration scripts load the shared .env from the repository root.
 dotenv.config({ path: path.resolve(__dirname, "../../..", ".env"), quiet: true });
 
+// Smoke test the Atlas connection with a lightweight ping command.
 const testConnection = async () => {
   if (!process.env.MONGO_URI) {
     throw new Error("MONGO_URI is missing. Add it to the project .env file.");

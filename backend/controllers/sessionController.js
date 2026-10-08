@@ -2,6 +2,7 @@ const Session = require("../models/sessionModel");
 
 const createSession = async (req, res, next) => {
   try {
+    // The client selects the interview type; ownership comes from the JWT.
     const { category, difficulty } = req.body || {};
     const validCategories = ["tech", "soft_skills"];
     const validDifficulties = ["easy", "medium", "hard"];
@@ -24,6 +25,7 @@ const createSession = async (req, res, next) => {
       });
     }
 
+    // Create the initial record only. Media upload is a separate, not-yet-built flow.
     const session = await Session.create({
       userId: req.auth.userId,
       sessionType: "interview",
@@ -32,6 +34,7 @@ const createSession = async (req, res, next) => {
       status: "pending",
     });
 
+    // MongoDB's generated _id is the sessionId shared with the other services.
     return res.status(201).json({
       data: {
         sessionId: session._id.toString(),
