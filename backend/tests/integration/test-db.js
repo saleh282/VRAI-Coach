@@ -70,7 +70,6 @@ const testDatabase = async () => {
     // Always release the database connection, even if a sample insert fails.
     await mongoose.connection.close();
     console.log("MongoDB connection closed");
-    console.log("User created:");
   }
 };
 
