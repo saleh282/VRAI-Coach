@@ -14,7 +14,7 @@ const getRaterSessions = async (req, res) => {
       return res.status(400).json({
         message: "Invalid status. Use 'pending' or 'all'.",
       });
-    }
+    }    
 
     // Only completed sessions have material ready for human review.
     const sessions = await Session.find({
@@ -59,6 +59,7 @@ const getRaterSessions = async (req, res) => {
       sessions: result,
     });
   } catch (error) {
+    console.error("Error fetching rater sessions:", error);
     console.error("Error fetching rater sessions:", error);
 
     return res.status(500).json({
