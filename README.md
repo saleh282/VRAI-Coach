@@ -275,6 +275,7 @@ The current Evaluation model and rubric use four criteria scored from 0 to 100: 
 
 ## Documentation
 
+- [API endpoints](docs/api-endpoints.md)
 - [API contracts v1](docs/api-contracts-v1.md)
 - [Rater validation design](docs/rater-validation-design.md)
 - [Scoring rubric v1](docs/scoring-rubric-v1.md)
