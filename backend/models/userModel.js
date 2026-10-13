@@ -27,7 +27,6 @@ const userSchema = new mongoose.Schema(
       // Public registration defaults to "user"; privileged roles are assigned internally.
       type: String,
       enum: ["user", "rater", "admin"],
-      default: "user",
     },
   },
   {

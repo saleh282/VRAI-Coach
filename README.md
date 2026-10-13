@@ -12,11 +12,12 @@ The human rater evaluates a session independently. AI scores must remain hidden 
 - JWT authentication with bcrypt password hashing.
 - User, Session, and Evaluation Mongoose models.
 - `POST /api/v1/sessions` to create an authenticated interview session and return its ID.
+- `POST /api/v1/sessions/:sessionId/upload` to upload the session audio and motion JSON.
 - Health-check endpoint and model tests.
 
 ### Planned, not implemented yet
 
-- Session media upload and file storage (`screen.mp4`, `audio.wav`, `motion.json`).
+- Cloud media storage (uploads currently use local development storage).
 - Session start, completion, list, and detail endpoints.
 - AI evaluation ingestion and rater-task APIs/UI.
 - Flutter app, VR client, and AI inference service.
@@ -29,7 +30,7 @@ The API documents describe intended contracts as well as implemented routes. Che
 User signs in through the mobile app
         -> backend returns a JWT access token
         -> backend creates a session and returns sessionId
-        -> VR records the session and (planned) uploads its media
+        -> VR records audio and motion, then uploads both to the backend
         -> AI evaluates the session (planned)
         -> a human rater independently evaluates the same session (planned)
         -> backend compares submitted AI and human evaluations (planned)
@@ -158,6 +159,35 @@ Example response:
   }
 }
 ```
+
+### Upload session audio and motion
+
+`POST /api/v1/sessions/:sessionId/upload`
+
+Requires `Authorization: Bearer <accessToken>`. Send `multipart/form-data` with exactly these file fields:
+
+| Field | File type | Stored name |
+| --- | --- | --- |
+| `audio` | `.wav` | `audio.wav` |
+| `motionLog` | valid `.json` | `motion.json` |
+
+The session must belong to the authenticated user and must not already have uploaded media. The server stores files locally under `backend/uploads/sessions/<sessionId>/`, saves their relative references in MongoDB, and marks the session `completed`. Do not manually set the multipart `Content-Type` header in Postman; it adds the required boundary automatically. Local storage is for development only; cloud/object storage is still needed for deployment.
+
+Example success response (`200`):
+
+```json
+{
+  "data": {
+    "sessionId": "<session-id>",
+    "status": "completed",
+    "completedAt": "<ISO-8601 timestamp>",
+    "files": {
+      "audio": "sessions/<session-id>/audio.wav",
+      "motionLog": "sessions/<session-id>/motion.json"
+    }
+  }
+}
+```
 ## Human Rater Evaluation
 
 ### Rater workflow
@@ -223,18 +253,17 @@ These scripts use the same root `.env` file as the server.
 
 ## Session data model
 
-The `sessions` collection stores the authenticated `userId`, session type, category, difficulty, status, timestamps, and references to artifacts. Current reference fields include `audioRef`, `videoRef`, `motionRef`, and `transcriptRef`. These are storage references, not the media files themselves.
+The `sessions` collection stores the authenticated `userId`, session type, category, difficulty, status, timestamps, and references to artifacts. Current media reference fields are `audioRef` and `motionRef`; `transcriptRef` is optional. These are storage references, not the media files themselves.
 
-Proposed media layout, pending confirmation by the VR and AI teams:
+Current local media layout (audio and motion only):
 
 ```text
 sessions/<sessionId>/
-├── screen.mp4
 ├── audio.wav
 └── motion.json
 ```
 
-The upload endpoint, storage provider, and media synchronization contract have not been implemented/agreed yet. Large audio/video files are expected to live in file/object storage; MongoDB should store their references and session metadata.
+The local upload endpoint is implemented. Cloud storage and the exact motion-data schema/synchronization contract still need to be agreed with the AI and VR teams. MongoDB stores file references and session metadata, not the media bytes.
 
 ## Database models
 

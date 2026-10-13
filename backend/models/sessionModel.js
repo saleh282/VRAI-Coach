@@ -48,12 +48,6 @@ const sessionSchema = new mongoose.Schema(
       trim: true,
     },
 
-    videoRef: {
-      // Optional pointer to the screen recording.
-      type: String,
-      trim: true,
-    },
-
     motionRef: {
       // Optional pointer to the motion-tracking JSON log.
       type: String,

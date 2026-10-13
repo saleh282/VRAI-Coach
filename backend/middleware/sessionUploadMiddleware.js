@@ -7,7 +7,6 @@ const UPLOAD_ROOT = path.resolve(__dirname, "../uploads");
 const SESSION_UPLOAD_ROOT = path.join(UPLOAD_ROOT, "sessions");
 
 const allowedExtensions = {
-  screenVideo: ".mp4",
   audio: ".wav",
   motionLog: ".json",
 };
@@ -23,7 +22,6 @@ const storage = multer.diskStorage({
   filename: (req, file, callback) => {
     // Use server-controlled names; never use an uploaded filename as a disk path.
     const filenames = {
-      screenVideo: "screen.mp4",
       audio: "audio.wav",
       motionLog: "motion.json",
     };
@@ -34,10 +32,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: {
-    files: 3,
-    fileSize: 150 * 1024 * 1024,
-  },
+  limits: { files: 2, fileSize: 150 * 1024 * 1024 },
   fileFilter: (req, file, callback) => {
     const expectedExtension = allowedExtensions[file.fieldname];
     const actualExtension = path.extname(file.originalname).toLowerCase();
@@ -52,7 +47,6 @@ const upload = multer({
     return callback(null, true);
   },
 }).fields([
-  { name: "screenVideo", maxCount: 1 },
   { name: "audio", maxCount: 1 },
   { name: "motionLog", maxCount: 1 },
 ]);
@@ -61,6 +55,12 @@ const upload = multer({
 const uploadSessionFiles = (req, res, next) => {
   upload(req, res, (error) => {
     if (!error) return next();
+
+    // Multer may already have written one file before another field fails.
+    const uploadedFiles = Object.values(req.files || {}).flat();
+    for (const file of uploadedFiles) {
+      fs.unlink(file.path, () => {});
+    }
 
     const isMulterError = error instanceof multer.MulterError;
     const status = error.code === "LIMIT_FILE_SIZE" ? 413 : (error.status || 400);
