@@ -3,29 +3,34 @@ const mongoose = require("mongoose");
 const Session = require("../models/sessionModel");
 const Evaluation = require("../models/evaluationModel");
 
-// Rater workflow handlers. These routes currently have no auth middleware;
-// protect them with requireAuth + allowRoles("rater") before real use.
+// raterId comes from the authenticated user, not from the session owner.
 // GET /api/v1/rater/sessions
+
 const getRaterSessions = async (req, res) => {
   try {
     const { status } = req.query;
 
-    if (status && status !== "pending" && status !== "all") {
-      return res.status(400).json({
-        message: "Invalid status. Use 'pending' or 'all'.",
-      });
-    }    
+    const allowedStatuses = ["unreviewed", "completed"];
 
-    // Only completed sessions have material ready for human review.
-    const sessions = await Session.find({
-      status: "completed",
-    })
-      .sort({ completedAt: -1 })
+    if (status && !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        message:
+          "Invalid status. Use 'unreviewed' or 'completed'.",
+      });
+    }
+
+    // Get all sessions unless a specific filter is requested.
+    const filter = status === "completed"
+      || status === "unreviewed"
+      ? { status: "completed" }
+      : {};
+
+    const sessions = await Session.find(filter)
+      .sort({ createdAt: -1 })
       .lean();
 
     const sessionIds = sessions.map((session) => session._id);
 
-    // Find completed sessions that already have a submitted human rating.
     const humanEvaluations = await Evaluation.find({
       sessionId: { $in: sessionIds },
       evaluatorType: "HUMAN",
@@ -47,10 +52,11 @@ const getRaterSessions = async (req, res) => {
       ),
     }));
 
-    // The pending view is the queue; "all" also includes already-rated sessions.
-    if (status === "pending") {
+    // Keep only completed sessions without a submitted human evaluation.
+    if (status === "unreviewed") {
       result = result.filter(
-        (session) => !session.hasHumanEvaluation
+        (session) =>
+          !session.hasHumanEvaluation
       );
     }
 
@@ -60,13 +66,13 @@ const getRaterSessions = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching rater sessions:", error);
-    console.error("Error fetching rater sessions:", error);
 
     return res.status(500).json({
       message: "Failed to fetch sessions",
     });
   }
 };
+
 
 
 // GET /api/v1/rater/sessions/:sessionId
@@ -199,7 +205,8 @@ const submitRaterEvaluation = async (req, res) => {
     const evaluation = new Evaluation({
       sessionId,
       evaluatorType: "HUMAN",
-      raterId: session.userId,
+      // raterId: session.userId,
+      raterId: req.auth.userId,
 
       rubricVersion: "1.0.0",
       status: "SUBMITTED",
