@@ -79,10 +79,8 @@ const register = async (req, res, next) => {
       // Never accept a role from public registration input.
     });
 
-    const accessToken = createAccessToken(user);
     return res.status(201).json({
       data: {
-        accessToken,
         user: publicUser(user),
       },
     });

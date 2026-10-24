@@ -48,6 +48,17 @@ test("accepts user, rater, and admin roles", async () => {
   }
 });
 
+test("assigns the least-privileged user role when no role is provided", async () => {
+  const user = new User({
+    name: "New Account",
+    email: "new-account@example.com",
+    passwordHash: "hash",
+  });
+
+  assert.equal(user.role, "user");
+  await user.validate();
+});
+
 test("rejects an unsupported user role", async () => {
   const user = new User({
     name: "Test User",

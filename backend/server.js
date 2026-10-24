@@ -6,6 +6,8 @@ const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const raterRoutes = require("./routes/raterRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
+const aiRoutes = require("./routes/aiRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 // Load the project-root environment file (one directory above backend/).
 dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
@@ -18,6 +20,8 @@ app.use(express.json({ limit: "10kb" }));
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/sessions", sessionRoutes);
 app.use("/api/v1/rater", raterRoutes);
+app.use("/api/v1/ai", aiRoutes);
+app.use("/api/v1/admin", adminRoutes);
 
 app.get("/", (req, res) => {
     res.send("VRAI-Coach Backend is running 🚀");

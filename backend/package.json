@@ -7,7 +7,7 @@
     "db:init": "node init-db.js",
     "test:connection": "node --test tests/integration/test-connection.js",
     "test:db": "node --test tests/integration/test-db.js",
-    "test": "node --test tests/models.test.js"
+    "test": "node --test tests/models.test.js tests/sessionQueries.test.js tests/aiEvaluation.test.js tests/authController.test.js tests/raterSessions.test.js tests/adminRoutes.test.js tests/adminController.test.js"
   },
   "keywords": [],
   "author": "",

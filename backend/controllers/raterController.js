@@ -19,11 +19,8 @@ const getRaterSessions = async (req, res) => {
       });
     }
 
-    // Get all sessions unless a specific filter is requested.
-    const filter = status === "completed"
-      || status === "unreviewed"
-      ? { status: "completed" }
-      : {};
+    // Raters should only see sessions whose recording/upload is complete.
+    const filter = { status: "completed" };
 
     const sessions = await Session.find(filter)
       .sort({ createdAt: -1 })

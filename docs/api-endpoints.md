@@ -37,7 +37,7 @@ Request:
 }
 ```
 
-Success: `201 Created`, returning `data.accessToken` and the public user fields (`id`, `name`, `email`, `role`). The role is assigned by the backend; public registration must not be used to create a rater/admin account.
+Success: `201 Created`, returning the public user fields (`id`, `name`, `email`, `role`) without an access token. The client should call Login after registration. The role is assigned by the backend; public registration must not be used to create a rater/admin account.
 
 ### Login
 
@@ -61,6 +61,18 @@ Success: `200 OK`, returning `data.accessToken` and the public user fields.
 Returns the signed-in user's public profile.
 
 ## Sessions
+
+### List my sessions
+
+`GET /api/v1/sessions/me` — requires a valid Bearer token with the `user` role.
+
+No request body. The backend gets the owner from the token and returns only that user's sessions, newest first. Each item includes `sessionId`, category, difficulty, status, timestamps, and `resultStatus` (`pending` or `ready`) based on whether a submitted AI evaluation exists.
+
+### Get one of my sessions and its result
+
+`GET /api/v1/sessions/:sessionId` — requires a valid Bearer token with the `user` role.
+
+No request body. The session must belong to the signed-in user. The response includes session details and either the submitted AI result (`scores`, `overallScore`, feedback, and rubric/model metadata) or `{ "status": "pending" }` if there is no submitted AI result yet. Human rater evaluations are not returned by this user endpoint. A missing or non-owned session returns `404`.
 
 ### Create a session
 
@@ -136,9 +148,54 @@ All four scores must be numbers from `0` to `100`; `evidenceNote` is required. S
 
 **Current limitation:** duplicate protection is session-wide, rather than one evaluation per rater per session. Therefore the current implementation does not yet support multiple raters independently rating the same session. Assignment and per-rater duplicate rules need follow-up work.
 
+## AI service integration
+
+### Submit an AI evaluation
+
+`POST /api/v1/ai/sessions/:sessionId/evaluation` — trusted AI service only.
+
+Authenticate with the shared secret in `x-api-key`. Configure the same `AI_SERVICE_API_KEY` value securely in the backend and AI service; do not commit or send the secret in ordinary chat. This endpoint does not use a user's JWT.
+
+Request:
+
+```json
+{
+  "modelVersion": "interview-model-1.0",
+  "rubricVersion": "1.0.0",
+  "scores": {
+    "communication": 80,
+    "clarity": 85,
+    "confidence": 75,
+    "contentQuality": 90
+  },
+  "feedback": "The response was clear and supported by an example."
+}
+```
+
+`modelVersion` and all four numeric score fields are required; scores must be from `0` to `100`. `rubricVersion` defaults to `1.0.0`, and `feedback` is optional. The referenced session must exist and be `completed`. The backend calculates `overallScore` from the rubric weights; callers must not send an overall score.
+
+Success: `201 Created`, returning the saved AI evaluation ID, session ID, versions, scores, calculated overall score, feedback, and submission time. Re-submitting the same session/model/rubric version returns `409 Conflict`. A missing or invalid service key returns `401`; if the backend key is not configured, the endpoint returns `503`.
+
+After a successful submission, the user's `GET /api/v1/sessions/:sessionId` endpoint can return this result to the owning user.
+
+## Admin
+
+All `/api/v1/admin` routes require a valid Bearer token with the `admin` role. Passwords and password hashes are never returned. At least one initial admin must be provisioned securely outside public registration before these endpoints can be used.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/admin/users` | List users with safe profile fields and role. |
+| `GET` | `/api/v1/admin/users/:userId` | View one user's safe profile fields and role. |
+| `PATCH` | `/api/v1/admin/users/:userId/role` | Change a user's role. JSON body: `{ "role": "rater" }`; allowed values are `user`, `rater`, `admin`. |
+| `GET` | `/api/v1/admin/sessions` | List sessions with owner summary. Supports `status`, `limit` (max 100), and `offset` query parameters. |
+| `GET` | `/api/v1/admin/sessions/:sessionId` | View session details, file references, submitted AI evaluations, and submitted human evaluations with rater profile. |
+| `GET` | `/api/v1/admin/raters` | List rater profiles and count of submitted evaluations. |
+| `GET` | `/api/v1/admin/raters/:raterId` | View one rater's safe profile and submitted human evaluations. |
+
+Session assignments are intentionally not included in the current scope. Admin session details include AI and human scores; rater endpoints do not include AI scores.
+
 ## Not implemented
 
 - Session media retrieval/download for raters or the AI service.
 - Per-rater session assignment and multiple independent human ratings per session.
-- AI evaluation ingestion/retrieval endpoints.
 - Cloud/object storage such as S3.

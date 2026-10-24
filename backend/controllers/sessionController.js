@@ -2,6 +2,115 @@ const fs = require("fs/promises");
 const mongoose = require("mongoose");
 const path = require("path");
 const Session = require("../models/sessionModel");
+const Evaluation = require("../models/evaluationModel");
+
+// GET /api/v1/sessions/me — return only the signed-in user's session summaries.
+const getMySessions = async (req, res, next) => {
+  try {
+    const sessions = await Session.find({ userId: req.auth.userId })
+      .select("_id category difficulty status createdAt completedAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const sessionIds = sessions.map((session) => session._id);
+    const aiEvaluations = sessionIds.length
+      ? await Evaluation.find({
+          sessionId: { $in: sessionIds },
+          evaluatorType: "AI",
+          status: "SUBMITTED",
+        })
+          .select("sessionId submittedAt")
+          .sort({ submittedAt: -1 })
+          .lean()
+      : [];
+
+    const sessionsWithResults = new Set(
+      aiEvaluations.map((evaluation) => evaluation.sessionId.toString())
+    );
+
+    return res.status(200).json({
+      data: {
+        sessions: sessions.map((session) => ({
+          sessionId: session._id.toString(),
+          category: session.category,
+          difficulty: session.difficulty,
+          status: session.status,
+          createdAt: session.createdAt,
+          completedAt: session.completedAt,
+          resultStatus: sessionsWithResults.has(session._id.toString())
+            ? "ready"
+            : "pending",
+        })),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// GET /api/v1/sessions/:sessionId — return owned session details and its AI result only.
+const getMySessionDetails = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      return res.status(400).json({
+        error: { code: "INVALID_SESSION_ID", message: "Session ID is invalid" },
+      });
+    }
+
+    const session = await Session.findOne({
+      _id: sessionId,
+      userId: req.auth.userId,
+    })
+      .select("_id category difficulty status createdAt startedAt completedAt")
+      .lean();
+
+    // Use the same response for missing and non-owned sessions to avoid leaking their existence.
+    if (!session) {
+      return res.status(404).json({
+        error: { code: "SESSION_NOT_FOUND", message: "Session was not found" },
+      });
+    }
+
+    const evaluation = await Evaluation.findOne({
+      sessionId: session._id,
+      evaluatorType: "AI",
+      status: "SUBMITTED",
+    })
+      .select("scores overallScore feedback modelVersion rubricVersion submittedAt")
+      .sort({ submittedAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      data: {
+        session: {
+          sessionId: session._id.toString(),
+          category: session.category,
+          difficulty: session.difficulty,
+          status: session.status,
+          createdAt: session.createdAt,
+          startedAt: session.startedAt,
+          completedAt: session.completedAt,
+        },
+        result: evaluation
+          ? {
+              status: "ready",
+              evaluatorType: "AI",
+              scores: evaluation.scores,
+              overallScore: evaluation.overallScore,
+              feedback: evaluation.feedback,
+              modelVersion: evaluation.modelVersion,
+              rubricVersion: evaluation.rubricVersion,
+              submittedAt: evaluation.submittedAt,
+            }
+          : { status: "pending" },
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
 
 // Confirm the session exists and belongs to the signed-in user before Multer writes files.
 const ensureSessionCanReceiveUpload = async (req, res, next) => {
@@ -153,6 +262,8 @@ const createSession = async (req, res, next) => {
 
 module.exports = {
   createSession,
+  getMySessions,
+  getMySessionDetails,
   ensureSessionCanReceiveUpload,
   uploadSessionMedia,
 };

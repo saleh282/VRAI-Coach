@@ -12,14 +12,17 @@ The human rater evaluates a session independently. AI scores must remain hidden 
 - JWT authentication with bcrypt password hashing.
 - User, Session, and Evaluation Mongoose models.
 - `POST /api/v1/sessions` to create an authenticated interview session and return its ID.
+- `GET /api/v1/sessions/me` and `GET /api/v1/sessions/:sessionId` for a user's own sessions and submitted AI result.
 - `POST /api/v1/sessions/:sessionId/upload` to upload the session audio and motion JSON.
+- `POST /api/v1/ai/sessions/:sessionId/evaluation` for the trusted AI service to submit a result.
+- Admin management and reporting routes under `/api/v1/admin`.
 - Health-check endpoint and model tests.
 
 ### Planned, not implemented yet
 
 - Cloud media storage (uploads currently use local development storage).
-- Session start, completion, list, and detail endpoints.
-- AI evaluation ingestion and rater-task APIs/UI.
+- Dedicated session start and completion endpoints.
+- AI evaluation retrieval/consumer pipeline and rater-task assignment/UI.
 - Flutter app, VR client, and AI inference service.
 
 The API documents describe intended contracts as well as implemented routes. Check the status notes in each section before integrating.
@@ -103,7 +106,7 @@ Base URL for local development: `http://localhost:5000`
 }
 ```
 
-Returns `201` with `data.accessToken` and the public user object. Passwords must be at least 8 characters. Public registration always assigns the `user` role; clients cannot choose a role.
+Returns `201` with the public user object. Registration does not create a login session or return an access token; the client should call Login next. Passwords must be at least 8 characters. Public registration always assigns the `user` role; clients cannot choose a role.
 
 ### Login
 
