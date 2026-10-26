@@ -1,0 +1,28 @@
+users:
+{
+    "name": "salehh",
+    "email": "salehh.salehh567@gmail.com",
+    "password": "1h2341234"   
+}
+{
+    "email":"haneen@gmail.com",
+    "password":"haneen123"
+}
+
+raters:
+{
+  "email": "rater@test.com",
+  "password": "12345678"
+}
+{
+    "name": "rater haneen",
+    "email": "raterhaneen@gmail.com",
+    "password": "raterhaneen"
+}
+
+admins:
+{
+    "name": "admin haneen",
+    "email": "adminhaneen@gmail.com",
+    "password": "adminhaneen"
+}

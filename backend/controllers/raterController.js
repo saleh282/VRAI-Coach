@@ -28,8 +28,10 @@ const getRaterSessions = async (req, res) => {
 
     const sessionIds = sessions.map((session) => session._id);
 
+    const raterId = req.auth.userId;
     const humanEvaluations = await Evaluation.find({
       sessionId: { $in: sessionIds },
+      raterId,
       evaluatorType: "HUMAN",
       status: "SUBMITTED",
     })
@@ -49,7 +51,7 @@ const getRaterSessions = async (req, res) => {
       ),
     }));
 
-    // Keep only completed sessions without a submitted human evaluation.
+    // A session is considered reviewed only for the currently authenticated rater.
     if (status === "unreviewed") {
       result = result.filter(
         (session) =>
@@ -102,6 +104,7 @@ const getRaterSession = async (req, res) => {
     // Report submission state without loading or returning any AI scores.
     const humanEvaluation = await Evaluation.findOne({
       sessionId,
+      raterId: req.auth.userId,
       evaluatorType: "HUMAN",
       status: "SUBMITTED",
     })
@@ -184,28 +187,30 @@ const submitRaterEvaluation = async (req, res) => {
       });
     }
 
-    // Give a clear conflict response; the unique database index is the final guard.
+    // Prevent only this authenticated rater from submitting a duplicate.
+    // Other raters may independently evaluate the same session.
+    const raterId = req.auth.userId;
+    const rubricVersion = "1.0.0";
     const existingEvaluation = await Evaluation.findOne({
       sessionId,
+      raterId,
       evaluatorType: "HUMAN",
+      rubricVersion,
       status: "SUBMITTED",
     });
 
     if (existingEvaluation) {
       return res.status(409).json({
-        message: "This session has already been evaluated by a human",
+        message: "You have already evaluated this session",
       });
     }
 
-    // TODO: Once these routes are protected, set raterId from req.auth.userId.
-    // This placeholder currently records the session owner, not the actual rater.
     const evaluation = new Evaluation({
       sessionId,
       evaluatorType: "HUMAN",
-      // raterId: session.userId,
-      raterId: req.auth.userId,
+      raterId,
 
-      rubricVersion: "1.0.0",
+      rubricVersion,
       status: "SUBMITTED",
 
       scores,
@@ -235,7 +240,7 @@ const submitRaterEvaluation = async (req, res) => {
 
     if (error.code === 11000) {
       return res.status(409).json({
-        message: "This session already has a submitted human evaluation",
+        message: "You have already evaluated this session",
       });
     }
 

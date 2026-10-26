@@ -150,8 +150,9 @@ evaluationSchema.pre("validate", function () {
   }
 });
 
-// Enforce at most one submitted evaluation per evaluator/version combination.
+// Support lookups by session and enforce one submitted evaluation per rater/session/version.
 evaluationSchema.index({ sessionId: 1 });
+evaluationSchema.index({ raterId: 1, sessionId: 1, evaluatorType: 1, status: 1 });
 evaluationSchema.index(
   { sessionId: 1, evaluatorType: 1, modelVersion: 1, rubricVersion: 1 },
   {
@@ -164,14 +165,14 @@ evaluationSchema.index(
   }
 );
 evaluationSchema.index(
-  { sessionId: 1, evaluatorType: 1, rubricVersion: 1 },
+  { sessionId: 1, raterId: 1, rubricVersion: 1 },
   {
     unique: true,
     partialFilterExpression: {
       evaluatorType: "HUMAN",
       status: "SUBMITTED",
     },
-    name: "unique_submitted_human_evaluation",
+    name: "unique_submitted_human_evaluation_per_rater",
   }
 );
 

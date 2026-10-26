@@ -8,6 +8,10 @@ const {
   listRaters,
   getRaterDetails,
 } = require("../controllers/adminController");
+const {
+  exportHumanEvaluationsCsv,
+  downloadHumanEvaluationsCsv,
+} = require("../controllers/adminExportController");
 const { requireAuth, allowRoles } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -22,5 +26,7 @@ router.get("/sessions", listSessions);
 router.get("/sessions/:sessionId", getSessionReport);
 router.get("/raters", listRaters);
 router.get("/raters/:raterId", getRaterDetails);
+router.get("/evaluations/export.csv", exportHumanEvaluationsCsv);
+router.get("/evaluations/download.csv", downloadHumanEvaluationsCsv);
 
 module.exports = router;

@@ -18,6 +18,9 @@ The human rater evaluates a session independently. AI scores must remain hidden 
 - Admin management and reporting routes under `/api/v1/admin`.
 - Health-check endpoint and model tests.
 
+- Human-rater evaluation workflow with independent evaluations by multiple raters.
+- Admin-only CSV export and download endpoints for submitted human evaluations.
+
 ### Planned, not implemented yet
 
 - Cloud media storage (uploads currently use local development storage).
@@ -221,6 +224,22 @@ AI-generated scores and AI-generated feedback are not exposed to the human rater
 
 Human evaluations are used to support validation of the AI evaluation model.
 
+### Multiple Raters per Session
+
+The system supports independent human evaluations of the same completed session by multiple raters.
+
+- Each rater can submit one human evaluation per session for the same rubric version.
+- Different raters can evaluate the same session independently.
+- A rater cannot submit a duplicate evaluation for a session they have already evaluated.
+- Each evaluation is stored as a separate document in the `evaluations` collection and is linked to both the session and the authenticated rater.
+- The backend identifies the rater using the authenticated JWT. Clients must not choose the `raterId` in the request body.
+- Each rater's review status is calculated independently. A session evaluated by one rater can remain unreviewed for another rater.
+- AI scores and feedback remain hidden from human raters during the evaluation process.
+
+Duplicate submissions by the same rater are rejected with `409 Conflict`. A successful new human evaluation returns `201 Created`.
+
+The current workflow does not require every session to be evaluated by a fixed number of raters; that requirement can be introduced separately if needed.
+
 ### Rater Testing
 
 The human-rater workflow was tested using Postman, including:
@@ -235,6 +254,15 @@ The human-rater workflow was tested using Postman, including:
 - Verifying that submitted evaluations are stored as `HUMAN`.
 - Verifying that AI scores and feedback are hidden from the rater.
 - Verifying that duplicate submitted human evaluations are rejected.
+
+Additional checks to run when validating multiple-rater and CSV behavior:
+
+- Verify that two different raters can submit independent evaluations for the same completed session.
+- Verify that the same rater cannot submit a second evaluation for the same session and rubric version.
+- Verify that each rater's unreviewed session list reflects their own submitted evaluations.
+- Verify that the CSV export includes submitted human evaluations and excludes AI and draft evaluations.
+- Verify that both export endpoints require admin authorization.
+- Verify that the download endpoint saves a CSV copy in `backend/exports/` and returns the file for download.
 
 ## Testing
 
@@ -276,12 +304,57 @@ The local upload endpoint is implemented. Cloud storage and the exact motion-dat
 
 The current Evaluation model and rubric use four criteria scored from 0 to 100: communication, clarity, confidence, and content quality. The final rater rubric must match the AI rubric before validation endpoints are built.
 
+## Human Evaluation CSV Export
+
+The backend provides admin-only endpoints to export submitted human evaluations as CSV files.
+
+### Export Endpoints
+
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| `GET` | `/api/v1/admin/evaluations/export.csv` | Generates and returns the CSV file in the HTTP response. |
+| `GET` | `/api/v1/admin/evaluations/download.csv` | Generates the CSV, saves a copy in `backend/exports/`, and returns the file for download. |
+
+Both endpoints require a valid Bearer JWT belonging to a user with the `admin` role.
+
+### Exported Data
+
+The CSV includes:
+
+- Evaluation ID and session ID.
+- Session category and difficulty.
+- Rater ID and rater name.
+- Communication, clarity, confidence, and content quality scores.
+- Overall score, rubric version, evidence note, and submission timestamp.
+
+Only submitted human evaluations are included. AI evaluations and draft evaluations are excluded.
+
+The CSV uses UTF-8 encoding with a BOM and properly escaped CSV fields.
+
+### Downloaded File Storage
+
+The download endpoint creates the `backend/exports/` directory if it does not exist and saves each export with a unique filename, for example:
+
+`human-evaluations-<timestamp>.csv`
+
+The saved file is also returned as an HTTP download. The regular export endpoint returns the CSV without saving a server-side copy.
+
+### Evaluation Indexes and Uniqueness
+
+MongoDB indexes support evaluation lookups and enforce uniqueness rules.
+
+- A unique partial index prevents duplicate submitted AI evaluations for the same session, model version, and rubric version.
+- A unique partial index ensures that each rater can submit only one human evaluation per session and rubric version.
+
+Multiple raters can independently evaluate the same session.
+
 ## Documentation
 
 - [API endpoints](docs/api-endpoints.md)
 - [API contracts v1](docs/api-contracts-v1.md)
 - [Rater validation design](docs/rater-validation-design.md)
 - [Scoring rubric v1](docs/scoring-rubric-v1.md)
+- [Human evaluation update](docs/human-evaluation-update.md)
 
 ## Security notes
 

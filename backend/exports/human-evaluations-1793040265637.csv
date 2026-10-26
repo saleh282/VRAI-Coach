@@ -1,0 +1,8 @@
+﻿"evaluationId","sessionId","sessionCategory","sessionDifficulty","raterId","raterName","communication","clarity","confidence","contentQuality","overallScore","rubricVersion","evidenceNote","submittedAt"
+"6adf9edb606b011f3fe86610","6ad8fb30527bd17dfe2706c7","tech","medium","6ac7fec73b4b98ba9a524b33","Rater Test","70","80","95","70","77.5","1.0.0","very good","2026-10-26T18:41:31.760Z"
+"6adf9e9c606b011f3fe8660f","6ad8fb30527bd17dfe2706c7","tech","medium","6adf2f25eb6815d69bdc4688","rater haneen","70","80","95","70","77.5","1.0.0","not bad","2026-10-26T18:40:28.442Z"
+"6adf9811e79df9ed3dff51ef","6ad92f22527bd17dfe2706c9","tech","hard","6ac7fec73b4b98ba9a524b33","Rater Test","70","80","95","70","77.5","1.0.0","not bad","2026-10-26T18:12:33.685Z"
+"6adf2ec7eb6815d69bdc4687","6ac7f0cebb4a668e897e3415","tech","hard","6ac7fec73b4b98ba9a524b33","Rater Test","80","85","75","90","82.75","1.0.0","good","2026-10-26T10:43:19.084Z"
+"6add32d68f842ce8d784c885","6add2e0f8f842ce8d784c883","soft_skills","hard","6ad8fa8f527bd17dfe2706c6","user12","80","85","75","90","82.75","1.0.0","dsvdsz","2026-10-24T22:36:06.545Z"
+"6ace20f1e00be1ae568857aa","6ace1cfee00be1ae568857a9","soft_skills","easy","6ac7fec73b4b98ba9a524b33","Rater Test","80","85","75","90","82.75","1.0.0","The answer was structured and supported by an example.","2026-10-13T12:15:45.101Z"
+"6ac814f83b4b98ba9a524b35","6ac7f0c4bb4a668e897e3414","tech","hard","6ac7fec73b4b98ba9a524b33","Rater Test","75","90","80","88","83","1.0.0","The candidate communicated clearly and provided relevant evidence.","2026-10-08T22:11:04.209Z"
