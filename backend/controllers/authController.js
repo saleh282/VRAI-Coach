@@ -1,9 +1,19 @@
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
+const otpService = require("../services/otpService");
+const tokenService = require("../services/tokenService");
+const googleAuth = require("../services/googleAuth");
+const {
+  validateGoogle,
+  validateRegister,
+  validateLogin,
+  validateEmailOnly,
+  validateEmailCode,
+  validateResetPassword,
+  validateRefreshToken,
+} = require("../validation/authValidation");
 
 const BCRYPT_ROUNDS = 12;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Only expose safe profile fields; never return passwordHash in an API response.
 const publicUser = (user) => ({
@@ -11,161 +21,293 @@ const publicUser = (user) => ({
   name: user.name,
   email: user.email,
   role: user.role,
+  emailVerified: user.emailVerified !== false,
 });
 
-const createAccessToken = (user) => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error("JWT_SECRET is missing from the environment");
-  }
+const fail = (res, status, code, message, details) =>
+  res.status(status).json({ error: { code, message, ...(details ? { details } : {}) } });
 
-  // Put the user's ID in the JWT subject and include their role for authorization.
-  return jwt.sign(
-    { role: user.role },
-    process.env.JWT_SECRET,
-    {
-      subject: user._id.toString(),
-      expiresIn: process.env.JWT_EXPIRES_IN || "1h",
-    }
-  );
+const validationFailed = (res, errors) =>
+  fail(res, 400, "VALIDATION_ERROR", Object.values(errors)[0], errors);
+
+// The same reply whether or not the email exists, so it cannot be used to find accounts.
+const GENERIC_EMAIL_REPLY = "If an account exists for this email, a code has been sent";
+
+const OTP_ERRORS = {
+  invalid: [400, "INVALID_CODE", "The code is incorrect"],
+  expired: [400, "CODE_EXPIRED", "The code has expired. Request a new one"],
+  too_many_attempts: [429, "TOO_MANY_ATTEMPTS", "Too many wrong codes. Request a new one"],
 };
 
+const sendTokens = async (req, res, user, status = 200, extra = {}) => {
+  const tokens = await tokenService.issueTokens(user, req.get?.("user-agent"));
+  return res.status(status).json({ data: { ...tokens, user: publicUser(user), ...extra } });
+};
+
+// POST /api/v1/auth/register — create an unverified account and email a code.
 const register = async (req, res, next) => {
   try {
-    // Registration accepts credentials, but not a role chosen by the client.
-    const { name, email, password } = req.body;
+    const { value, errors } = validateRegister(req.body);
+    if (errors) return validationFailed(res, errors);
 
-    if (
-      typeof name !== "string" ||
-      typeof email !== "string" ||
-      typeof password !== "string" ||
-      !name.trim() ||
-      !email.trim() ||
-      !password
-    ) {
-      return res.status(400).json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Name, email, and password are required",
-        },
-      });
-    }
-
-    // Normalize email before validation and storage so casing is consistent.
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!EMAIL_PATTERN.test(normalizedEmail)) {
-      return res.status(400).json({
-        error: {
-          code: "INVALID_EMAIL",
-          message: "Enter a valid email address",
-        },
-      });
-    }
-
-    if (password.length < 8 || Buffer.byteLength(password, "utf8") > 72) {
-      return res.status(400).json({
-        error: {
-          code: "INVALID_PASSWORD",
-          message: "Password must be at least 8 characters and at most 72 bytes",
-        },
-      });
-    }
-
-    // Store only a one-way password hash, never the original password.
-    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const passwordHash = await bcrypt.hash(value.password, BCRYPT_ROUNDS);
     const user = await User.create({
-      name: name.trim(),
-      email: normalizedEmail,
+      name: value.name,
+      email: value.email,
       passwordHash,
+      emailVerified: false,
       // Never accept a role from public registration input.
     });
+
+    let emailSent = true;
+    try {
+      await otpService.issueOtp(user, "verify_email");
+    } catch (error) {
+      // The account exists; the client can ask for the code again.
+      console.error("Verification email failed:", error.message);
+      emailSent = false;
+    }
 
     return res.status(201).json({
       data: {
         user: publicUser(user),
+        verification: {
+          required: true,
+          emailSent,
+          expiresInSec: otpService.OTP_TTL_MINUTES * 60,
+        },
       },
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(409).json({
-        error: {
-          code: "EMAIL_ALREADY_REGISTERED",
-          message: "An account with this email already exists",
-        },
-      });
+      return fail(res, 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists");
     }
-
     if (error.name === "ValidationError") {
-      return res.status(400).json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Registration data is invalid",
-        },
-      });
+      return fail(res, 400, "VALIDATION_ERROR", "Registration data is invalid");
     }
-
     return next(error);
   }
 };
 
-const login = async (req, res, next) => {
+// POST /api/v1/auth/verify-email — confirm the code and sign the user in.
+const verifyEmail = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { value, errors } = validateEmailCode(req.body);
+    if (errors) return validationFailed(res, errors);
 
-    if (typeof email !== "string" || typeof password !== "string") {
-      return res.status(400).json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Email and password are required",
-        },
-      });
+    const user = await User.findOne({ email: value.email });
+    if (!user) return fail(res, ...OTP_ERRORS.invalid);
+    if (user.emailVerified !== false) {
+      return fail(res, 409, "EMAIL_ALREADY_VERIFIED", "This email is already verified. Sign in instead");
     }
 
-    // Compare the supplied password with the saved hash; don't reveal which
-    // credential was wrong in the response.
-    const user = await User.findOne({ email: email.trim().toLowerCase() });
-    const passwordMatches = user
-      ? await bcrypt.compare(password, user.passwordHash)
-      : false;
+    const outcome = await otpService.verifyOtp(user._id, "verify_email", value.code);
+    if (outcome !== "ok") return fail(res, ...OTP_ERRORS[outcome]);
 
-    if (!passwordMatches) {
-      return res.status(401).json({
-        error: {
-          code: "INVALID_CREDENTIALS",
-          message: "Email or password is incorrect",
-        },
-      });
-    }
-
-    const accessToken = createAccessToken(user);
-    return res.status(200).json({
-      data: {
-        accessToken,
-        user: publicUser(user),
-      },
-    });
+    user.emailVerified = true;
+    user.emailVerifiedAt = new Date();
+    await user.save();
+    return sendTokens(req, res, user);
   } catch (error) {
     return next(error);
   }
 };
 
+// POST /api/v1/auth/resend-verification
+const resendVerification = async (req, res, next) => {
+  try {
+    const { value, errors } = validateEmailOnly(req.body);
+    if (errors) return validationFailed(res, errors);
+
+    const user = await User.findOne({ email: value.email });
+    if (user && user.emailVerified === false) {
+      const result = await otpService.issueOtp(user, "verify_email");
+      if (!result.sent) {
+        return fail(res, 429, "RESEND_TOO_SOON", `Wait ${result.retryAfterSec} seconds before asking again`,
+          { retryAfterSec: result.retryAfterSec });
+      }
+    }
+    return res.status(200).json({ data: { message: GENERIC_EMAIL_REPLY } });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// POST /api/v1/auth/login
+const login = async (req, res, next) => {
+  try {
+    const { value, errors } = validateLogin(req.body);
+    if (errors) return validationFailed(res, errors);
+
+    // Compare with the saved hash; don't reveal which credential was wrong.
+    const user = await User.findOne({ email: value.email });
+    // Accounts created with Google have no password yet.
+    const passwordMatches = user?.passwordHash ? await bcrypt.compare(value.password, user.passwordHash) : false;
+    if (!passwordMatches) {
+      return fail(res, 401, "INVALID_CREDENTIALS", "Email or password is incorrect");
+    }
+
+    if (user.emailVerified === false) {
+      return fail(res, 403, "EMAIL_NOT_VERIFIED", "Verify your email before signing in");
+    }
+
+    return sendTokens(req, res, user);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// POST /api/v1/auth/google — sign in (or sign up) with a Google ID token.
+const googleSignIn = async (req, res, next) => {
+  try {
+    if (!googleAuth.googleConfigured()) {
+      return fail(res, 503, "GOOGLE_SIGN_IN_NOT_CONFIGURED", "Google sign-in is not set up on the server");
+    }
+
+    const { value, errors } = validateGoogle(req.body);
+    if (errors) return validationFailed(res, errors);
+
+    let profile;
+    try {
+      profile = await googleAuth.verifyGoogleIdToken(value.idToken);
+    } catch {
+      return fail(res, 401, "INVALID_GOOGLE_TOKEN", "Google sign-in failed. Try again");
+    }
+    if (!profile.email || !profile.emailVerified) {
+      return fail(res, 401, "GOOGLE_EMAIL_NOT_VERIFIED", "Your Google email is not verified");
+    }
+
+    // Same Google account, or an existing account with the same email (link them).
+    let user = await User.findOne({ googleId: profile.googleId })
+      || await User.findOne({ email: profile.email });
+    let isNewUser = false;
+
+    if (user) {
+      user.googleId = user.googleId || profile.googleId;
+      // Google has confirmed the email address.
+      if (user.emailVerified === false) {
+        user.emailVerified = true;
+        user.emailVerifiedAt = new Date();
+      }
+      if (user.isModified()) await user.save();
+    } else {
+      user = await User.create({
+        name: profile.name.slice(0, 60),
+        email: profile.email,
+        googleId: profile.googleId,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+      });
+      isNewUser = true;
+    }
+
+    return sendTokens(req, res, user, isNewUser ? 201 : 200, { isNewUser });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// POST /api/v1/auth/refresh — trade a refresh token for a new access + refresh pair.
+const refresh = async (req, res, next) => {
+  try {
+    const { value, errors } = validateRefreshToken(req.body);
+    if (errors) return validationFailed(res, errors);
+
+    const outcome = await tokenService.consumeRefreshToken(value.refreshToken);
+    if (outcome.error) {
+      return fail(res, 401, "INVALID_REFRESH_TOKEN", "Sign in again");
+    }
+
+    const user = await User.findById(outcome.userId);
+    if (!user) return fail(res, 401, "INVALID_REFRESH_TOKEN", "Sign in again");
+    return sendTokens(req, res, user);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// POST /api/v1/auth/logout — revoke this device's refresh token.
+const logout = async (req, res, next) => {
+  try {
+    const { value, errors } = validateRefreshToken(req.body);
+    if (errors) return validationFailed(res, errors);
+    await tokenService.revokeRefreshToken(value.refreshToken);
+    return res.status(204).end();
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// POST /api/v1/auth/forgot-password — email a reset code.
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { value, errors } = validateEmailOnly(req.body);
+    if (errors) return validationFailed(res, errors);
+
+    const user = await User.findOne({ email: value.email });
+    if (user) {
+      const result = await otpService.issueOtp(user, "reset_password");
+      if (!result.sent) {
+        return fail(res, 429, "RESEND_TOO_SOON", `Wait ${result.retryAfterSec} seconds before asking again`,
+          { retryAfterSec: result.retryAfterSec });
+      }
+    }
+    return res.status(200).json({ data: { message: GENERIC_EMAIL_REPLY } });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// POST /api/v1/auth/reset-password — check the code, set the new password, sign out everywhere.
+const resetPassword = async (req, res, next) => {
+  try {
+    const { value, errors } = validateResetPassword(req.body);
+    if (errors) return validationFailed(res, errors);
+
+    const user = await User.findOne({ email: value.email });
+    if (!user) return fail(res, ...OTP_ERRORS.invalid);
+
+    const outcome = await otpService.verifyOtp(user._id, "reset_password", value.code);
+    if (outcome !== "ok") return fail(res, ...OTP_ERRORS[outcome]);
+
+    user.passwordHash = await bcrypt.hash(value.newPassword, BCRYPT_ROUNDS);
+    // Receiving the code proves the person owns the email.
+    if (user.emailVerified === false) {
+      user.emailVerified = true;
+      user.emailVerifiedAt = new Date();
+    }
+    await user.save();
+    await tokenService.revokeAllForUser(user._id);
+
+    return res.status(200).json({ data: { message: "Password updated. Sign in with your new password" } });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// GET /api/v1/auth/me
 const getCurrentUser = async (req, res, next) => {
   try {
     // req.auth is populated by requireAuth after verifying the Bearer token.
     const user = await User.findById(req.auth.userId);
-
     if (!user) {
-      return res.status(401).json({
-        error: {
-          code: "UNAUTHENTICATED",
-          message: "The account for this token no longer exists",
-        },
-      });
+      return fail(res, 401, "UNAUTHENTICATED", "The account for this token no longer exists");
     }
-
     return res.status(200).json({ data: { user: publicUser(user) } });
   } catch (error) {
     return next(error);
   }
 };
 
-module.exports = { register, login, getCurrentUser };
+module.exports = {
+  googleSignIn,
+  register,
+  verifyEmail,
+  resendVerification,
+  login,
+  refresh,
+  logout,
+  forgotPassword,
+  resetPassword,
+  getCurrentUser,
+};

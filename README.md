@@ -9,7 +9,7 @@ The human rater evaluates a session independently. AI scores must remain hidden 
 ### Implemented in this repository
 
 - Express backend connected to MongoDB using Mongoose.
-- JWT authentication with bcrypt password hashing.
+- JWT authentication with bcrypt password hashing, email verification by OTP, Google sign-in, refresh tokens, and forgot/reset password.
 - User, Session, and Evaluation Mongoose models.
 - `POST /api/v1/sessions` to create an authenticated interview session and return its ID.
 - `GET /api/v1/sessions/me` and `GET /api/v1/sessions/:sessionId` for a user's own sessions and submitted AI result.
@@ -65,8 +65,10 @@ User signs in through the mobile app
    PORT=5000
    MONGO_URI=mongodb+srv://<database-user>:<url-encoded-password>@<cluster-host>/vrai-coach?retryWrites=true&w=majority
    JWT_SECRET=<long-random-secret>
-   JWT_EXPIRES_IN=1h
+   JWT_EXPIRES_IN=15m
    ```
+
+   For real emails also fill the `SMTP_*` values (see `.env.example`). Without them, verification and reset codes are printed in the server console, which is enough for local testing.
 
 4. Install backend dependencies and start the server:
 
@@ -97,32 +99,34 @@ Expected response:
 
 Base URL for local development: `http://localhost:5000`
 
-### Register
+### Authentication
 
-`POST /api/v1/auth/register`
+All auth endpoints live under `/api/v1/auth`. Errors use `{ "error": { "code", "message", "details"? } }`; validation errors put one message per field in `details`.
 
-```json
-{
-  "name": "Saleh Mohamed",
-  "email": "saleh@example.com",
-  "password": "example-password"
-}
-```
+| Endpoint | Body | Success | Notes |
+| --- | --- | --- | --- |
+| `POST /register` | `name`, `email`, `password` | `201` `data.user` + `data.verification` | Creates an unverified account and emails a 6-digit code. No token yet. |
+| `POST /verify-email` | `email`, `code` | `200` `accessToken`, `refreshToken`, `user` | Confirms the email and signs the user in. |
+| `POST /resend-verification` | `email` | `200` | One code per minute (`429 RESEND_TOO_SOON` with `retryAfterSec`). |
+| `POST /login` | `email`, `password` | `200` `accessToken`, `refreshToken`, `user` | `403 EMAIL_NOT_VERIFIED` until the email is confirmed. |
+| `POST /google` | `idToken` (from Google sign-in) | `200` or `201` `accessToken`, `refreshToken`, `user`, `isNewUser` | Signs in with Google. Creates the account on first use, or links an existing account with the same email. No OTP needed. |
+| `POST /refresh` | `refreshToken` | `200` new `accessToken` + new `refreshToken` | The old refresh token stops working. Reusing it signs the user out everywhere. |
+| `POST /logout` | `refreshToken` | `204` | Revokes that device's refresh token. |
+| `POST /forgot-password` | `email` | `200` | Emails a reset code. Same reply whether or not the email exists. |
+| `POST /reset-password` | `email`, `code`, `newPassword` | `200` | Sets the new password and signs out every device. |
+| `GET /me` | — | `200` `data.user` | Needs `Authorization: Bearer <accessToken>`. |
 
-Returns `201` with the public user object. Registration does not create a login session or return an access token; the client should call Login next. Passwords must be at least 8 characters. Public registration always assigns the `user` role; clients cannot choose a role.
+Rules:
 
-### Login
+- **Name** 2–60 characters. **Email** is trimmed and lower-cased. **Password** 8+ characters, at most 72 bytes, at least one letter and one number.
+- **Codes** are 6 digits, valid for 10 minutes (`OTP_TTL_MINUTES`), one active code per purpose. 5 wrong tries burn the code (`429 TOO_MANY_ATTEMPTS`). Only an HMAC of the code is stored.
+- **Access token** lasts 15 minutes (`JWT_EXPIRES_IN`). **Refresh token** lasts 30 days (`REFRESH_TOKEN_DAYS`), is random, and only its SHA-256 hash is stored in the `refreshTokens` collection.
+- **Rate limits per IP:** 50 login/register requests and 30 code requests per 15 minutes (`429 RATE_LIMITED`).
+- Accounts created before email verification existed have no `emailVerified` field and can still sign in.
+- Google accounts have no password. Password login refuses them; the user can set a password with forgot-password.
+- `GOOGLE_CLIENT_ID` lists the OAuth client IDs whose tokens are accepted (comma-separated: web, Android, iOS). Without it `/google` answers `503`.
 
-`POST /api/v1/auth/login`
-
-```json
-{
-  "email": "saleh@example.com",
-  "password": "example-password"
-}
-```
-
-Returns `200` with `data.accessToken` and the public user object. The token expires after one hour by default.
+Client flow: register → enter the emailed code (`verify-email`) → keep both tokens. When a request returns `401`, call `refresh` once and retry; if refresh fails, send the user to sign in.
 
 ### Get the current user
 

@@ -7,7 +7,8 @@
     "db:init": "node init-db.js",
     "test:connection": "node --test tests/integration/test-connection.js",
     "test:db": "node --test tests/integration/test-db.js",
-    "test": "node --test tests/models.test.js tests/sessionQueries.test.js tests/aiEvaluation.test.js tests/authController.test.js tests/raterSessions.test.js tests/adminRoutes.test.js tests/adminController.test.js"
+    "test": "node --test tests/models.test.js tests/sessionQueries.test.js tests/aiEvaluation.test.js tests/authController.test.js tests/authValidation.test.js tests/raterSessions.test.js tests/adminRoutes.test.js tests/adminController.test.js",
+    "db:drop-old-rating-index": "node scripts/drop-old-rating-index.js"
   },
   "keywords": [],
   "author": "",
@@ -17,8 +18,11 @@
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.1.0",
+    "google-auth-library": "^10.9.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.0",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "nodemailer": "^7.0.10"
   }
 }

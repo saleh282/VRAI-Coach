@@ -13,6 +13,8 @@ const adminRoutes = require("./routes/adminRoutes");
 dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 
 const app = express();
+// Behind a reverse proxy (Render, Railway, Nginx) set TRUST_PROXY=1 so rate limits see the real client IP.
+if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
 // Parse JSON request bodies and reject oversized payloads early.
 app.use(express.json({ limit: "10kb" }));
 
